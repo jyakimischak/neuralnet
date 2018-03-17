@@ -8,10 +8,35 @@ package neuralnet
 import (
 	"errors"
 	"fmt"
+	"math"
 	"math/rand"
 )
 
 const initialBias = 1.0
+
+//*************************************************************************************************************
+//Activation Functions
+
+const afStep = "afStep"
+const afLinear = "afLinear"
+const afSigmoid = "afSigmoid"
+const afHypertan = "afHypertan"
+
+func calcAfStep() float64 {
+	return 0
+}
+
+func calcAfLinear() float64 {
+	return 0
+}
+
+func calcAfSigmoid(x float64) float64 {
+	return 1 / (1 + math.Pow(math.E, x*-1))
+}
+
+func calcAfHypertan() float64 {
+	return 0
+}
 
 //*************************************************************************************************************
 //neuron
@@ -83,13 +108,14 @@ func (n *neuron) calc() error {
 //*************************************************************************************************************
 //neuralLayer
 
-// NeuralLayer is blabla
+// NeuralLayer represents a layer in the neural network.
 type neuralLayer struct {
-	NueronsInLayer int
-	neurons        []*neuron
-	PrevLayer      *neuralLayer
-	NextLayer      *neuralLayer
-	Input          []float64
-	Output         []float64
-	NumInputs      int
+	NueronsInLayer     int
+	neurons            []*neuron
+	PrevLayer          *neuralLayer
+	NextLayer          *neuralLayer
+	Input              []float64
+	Output             []float64
+	NumInputs          int
+	ActivationFunction string
 }
