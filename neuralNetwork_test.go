@@ -3,43 +3,33 @@ package neuralnet
 import (
 	"errors"
 	"testing"
+
+	"github.com/jyakimischak/neuralnet/actfuncs"
 )
 
 func TestNewNeuron(t *testing.T) {
 	const nInputs = 10
 
-	n, err := newNeuron(nInputs)
+	n, err := newNeuron(nInputs, actfuncs.NoActFunc)
 	if err != nil {
 		t.Error("For numInput=", nInputs, ", error ", err)
 	}
 	if n.NumInputs != nInputs {
-		t.Error(
-			"For n.NumInputs",
-			"Expected", nInputs,
-			"Got", n.NumInputs,
-		)
+		t.Error("For n.NumInputs", "Expected", nInputs, "Got", n.NumInputs)
 	}
 	if len(n.Weights) != nInputs+1 {
-		t.Error(
-			"For len(n.Weights)",
-			"Expected", nInputs+1,
-			"Got", len(n.Weights),
-		)
+		t.Error("For len(n.Weights)", "Expected", nInputs+1, "Got", len(n.Weights))
 	}
 	if len(n.Inputs) != nInputs+1 {
-		t.Error(
-			"For len(n.Inputs)",
-			"Expected", nInputs+1,
-			"Got", len(n.Inputs),
-		)
+		t.Error("For len(n.Inputs)", "Expected", nInputs+1, "Got", len(n.Inputs))
 	}
 
-	_, err2 := newNeuron(0)
+	_, err2 := newNeuron(0, actfuncs.NoActFunc)
 	if err2 == nil {
 		t.Error("For numInput=0, did not recieve error")
 	}
 
-	_, err3 := newNeuron(-1)
+	_, err3 := newNeuron(-1, actfuncs.NoActFunc)
 	if err3 == nil {
 		t.Error("For numInput=-1, did not recieve error")
 	}
@@ -49,7 +39,7 @@ func TestNewNeuron(t *testing.T) {
 //output before activation:
 //1 * 10 + 2 * 20 + 3 * 30 + 5 = 145
 func getNeuronKnownState() (*neuron, error) {
-	n, err := newNeuron(3)
+	n, err := newNeuron(3, actfuncs.NoActFunc)
 	if err != nil {
 		return n, errors.New("Error while creating known state neuron")
 	}
@@ -65,7 +55,7 @@ func getNeuronKnownState() (*neuron, error) {
 	return n, nil
 }
 
-func TestCalc(t *testing.T) {
+func TestNeuronCalc(t *testing.T) {
 	nInvalid := neuron{}
 	err := nInvalid.calc()
 	if err == nil {
@@ -82,13 +72,128 @@ func TestCalc(t *testing.T) {
 		t.Error("Error while calling calc on known state neuron")
 	}
 	if n.OutBeforeAct != 145 {
-		t.Error(
-			"For n.OutBeforeAct",
-			"Expected", 145,
-			"Got", n.OutBeforeAct,
-		)
+		t.Error("For n.OutBeforeAct", "Expected", 145, "Got", n.OutBeforeAct)
+	}
+	if n.Output != 145 {
+		t.Error("For n.Output no activation function", "Expected", 145, "Got", n.Output)
 	}
 
-	//TODO test the activation functions
+	n.ActFunc = actfuncs.Step
+	err4 := n.calc()
+	if err4 != nil {
+		t.Error("Error while calling calc on known state neuron for step activation function")
+	}
+	if n.Output != 1 {
+		t.Error("For n.Output Step", "Expected", 1, "Got", n.Output)
+	}
 
+	n.ActFunc = actfuncs.Sigmoid
+	err5 := n.calc()
+	if err5 != nil {
+		t.Error("Error while calling calc on known state neuron for sigmoid activation function")
+	}
+	if n.Output != 1 {
+		t.Error("For n.Output Step", "Expected", 1, "Got", n.Output)
+	}
+}
+
+func TestNewNeuralLayer(t *testing.T) {
+	_, err := newNeuralLayer("invalid", 10, 5, actfuncs.NoActFunc)
+	if err == nil {
+		t.Error("For invalid layer type, did not recieve error")
+	}
+
+	_, err2 := newNeuralLayer(layerTypeInput, 0, 5, actfuncs.NoActFunc)
+	if err2 == nil {
+		t.Error("For num neutrons 0, did not recieve error")
+	}
+
+	_, err3 := newNeuralLayer(layerTypeInput, 10, 0, actfuncs.NoActFunc)
+	if err3 == nil {
+		t.Error("For num inputs 0, did not recieve error")
+	}
+
+	_, err4 := newNeuralLayer(layerTypeInput, 10, 5, "invalid")
+	if err4 == nil {
+		t.Error("For invalid activation function, did not recieve error")
+	}
+
+	nl, err5 := newNeuralLayer(layerTypeInput, 10, 5, actfuncs.NoActFunc)
+	if err5 != nil {
+		t.Error("For valid neural layer, recieved error")
+	}
+	if nl.LayerType != layerTypeInput {
+		t.Error("For nl.LayerType", "Expected", layerTypeInput, "Got", nl.LayerType)
+	}
+	if nl.NumNeurons != 10 {
+		t.Error("For nl.NumNeurons", "Expected", 10, "Got", nl.NumNeurons)
+	}
+	if len(nl.Neurons) != 10 {
+		t.Error("For len(nl.Neurons)", "Expected", 10, "Got", nl.Neurons)
+	}
+	if len(nl.Outputs) != 10 {
+		t.Error("For len(nl.Outputs)", "Expected", 10, "Got", nl.Outputs)
+	}
+	if nl.NumInputs != 5 {
+		t.Error("For nl.NumInputs", "Expected", 5, "Got", nl.NumInputs)
+	}
+	if len(nl.Inputs) != 5 {
+		t.Error("For len(nl.Inputs)", "Expected", 5, "Got", nl.NumInputs)
+	}
+	if nl.ActFunc != actfuncs.NoActFunc {
+		t.Error("For nl.ActFunc", "Expected", actfuncs.NoActFunc, "Got", nl.ActFunc)
+	}
+
+	//need to check a non-input layer to ensure the activation function is set properly
+	nl2, err6 := newNeuralLayer(layerTypeHidden, 10, 5, actfuncs.Sigmoid)
+	if err6 != nil {
+		t.Error("For valid neural layer, recieved error")
+	}
+	if nl2.ActFunc != actfuncs.Sigmoid {
+		t.Error("For nl2.ActFunc", "Expected", actfuncs.Sigmoid, "Got", nl2.ActFunc)
+	}
+
+}
+
+// getKnownStateNeuralLayer will return a neural layer with known state.
+// This uses getKnownStateNeuron for its neurons.
+func getKnownStateNeuralLayer() (*neuralLayer, error) {
+	nl, err := newNeuralLayer(layerTypeInput, 3, 3, actfuncs.NoActFunc)
+	if err != nil {
+		return nl, err
+	}
+	for iNeurons := 0; iNeurons < 3; iNeurons++ {
+		nl.Neurons[iNeurons], err = getNeuronKnownState()
+		if err != nil {
+			return nl, err
+		}
+	}
+	nl.Inputs[0] = 1
+	nl.Inputs[1] = 2
+	nl.Inputs[2] = 3
+
+	return nl, nil
+}
+
+func TestNauralLayerCalc(t *testing.T) {
+	nlInvalid := neuralLayer{}
+	err := nlInvalid.calc()
+	if err == nil {
+		t.Error("For invalid neuralLayer, did not recieve error")
+	}
+
+	nl, err2 := getKnownStateNeuralLayer()
+	if err2 != nil {
+		t.Error("Error getting known state neural layer")
+	}
+	err3 := nl.calc()
+	if err3 != nil {
+		t.Error(err3)
+	}
+
+	for iInputs := 0; iInputs < 3; iInputs++ {
+		if nl.Outputs[iInputs] != 145 {
+			t.Errorf("For nl.Outputs[%d] Expected 145 Got %f", iInputs, nl.Outputs[iInputs])
+		}
+	}
 }

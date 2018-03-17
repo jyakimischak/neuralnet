@@ -8,35 +8,16 @@ package neuralnet
 import (
 	"errors"
 	"fmt"
-	"math"
 	"math/rand"
+
+	"github.com/jyakimischak/neuralnet/actfuncs"
 )
 
 const initialBias = 1.0
 
-//*************************************************************************************************************
-//Activation Functions
-
-const afStep = "afStep"
-const afLinear = "afLinear"
-const afSigmoid = "afSigmoid"
-const afHypertan = "afHypertan"
-
-func calcAfStep() float64 {
-	return 0
-}
-
-func calcAfLinear() float64 {
-	return 0
-}
-
-func calcAfSigmoid(x float64) float64 {
-	return 1 / (1 + math.Pow(math.E, x*-1))
-}
-
-func calcAfHypertan() float64 {
-	return 0
-}
+const layerTypeInput = "layerTypeInput"
+const layerTypeHidden = "layerTypeHidden"
+const layerTypeOutput = "layerTypeOutput"
 
 //*************************************************************************************************************
 //neuron
@@ -49,10 +30,11 @@ type neuron struct {
 	OutBeforeAct float64
 	NumInputs    int
 	Bias         float64
+	ActFunc      string
 }
 
 // newNeuron will setup a neuron and return the instance of it.
-func newNeuron(numInputs int) (*neuron, error) {
+func newNeuron(numInputs int, actFunc string) (*neuron, error) {
 	n := new(neuron)
 	if numInputs < 1 {
 		return n, errors.New("initNewNeuron: numInputs must be a positive integer")
@@ -69,11 +51,13 @@ func newNeuron(numInputs int) (*neuron, error) {
 	}
 	n.Bias = initialBias
 
+	n.ActFunc = actFunc
+
 	return n, nil
 }
 
 // isNeuronValid will check if a neuron is in a valid state.
-func (n *neuron) isNeuronValid() (bool, string) {
+func (n *neuron) isValid() (bool, string) {
 	if n.NumInputs < 1 {
 		return false, fmt.Sprintf("Invalid neuron. NumInput must be a positive integer but is %d. Did you call newNeuron when getting the instance?", n.NumInputs)
 	}
@@ -85,7 +69,7 @@ func (n *neuron) isNeuronValid() (bool, string) {
 
 // calc will calculate the output value for the neuron using the given activation function.
 func (n *neuron) calc() error {
-	isValid, isValidMsg := n.isNeuronValid()
+	isValid, isValidMsg := n.isValid()
 	if !isValid {
 		return errors.New(isValidMsg)
 	}
@@ -99,8 +83,7 @@ func (n *neuron) calc() error {
 		}
 	}
 
-	//TODO ensure that the activation function gets applied here
-	n.Output = n.OutBeforeAct
+	n.Output = actfuncs.ApplyActFunc(n.ActFunc, n.OutBeforeAct)
 
 	return nil
 }
@@ -110,12 +93,120 @@ func (n *neuron) calc() error {
 
 // NeuralLayer represents a layer in the neural network.
 type neuralLayer struct {
-	NueronsInLayer     int
-	neurons            []*neuron
-	PrevLayer          *neuralLayer
-	NextLayer          *neuralLayer
-	Input              []float64
-	Output             []float64
-	NumInputs          int
-	ActivationFunction string
+	LayerType  string
+	NumNeurons int
+	Neurons    []*neuron
+	PrevLayer  *neuralLayer
+	NextLayer  *neuralLayer
+	Inputs     []float64
+	NumInputs  int
+	Outputs    []float64
+	ActFunc    string
 }
+
+// isValidLayerType will return true if the layer type is valid
+func isValidLayerType(layerType string) bool {
+	return layerType == layerTypeHidden || layerType == layerTypeInput || layerType == layerTypeOutput
+}
+
+// newNeuralLayer will setup a neural layer and return an instance of it.
+// PrevLayer and NextLayer are NOT setup, they must be set after receiving the instance.
+func newNeuralLayer(layerType string, numNeurons int, numInputs int, actFunc string) (*neuralLayer, error) {
+	nl := &neuralLayer{}
+
+	if !isValidLayerType(layerType) {
+		return nl, fmt.Errorf("Unknown layer type: %s", layerType)
+	}
+	if numNeurons < 1 {
+		return nl, fmt.Errorf("numNeurons must be greater than 1, it is: %d", numNeurons)
+	}
+	if numInputs < 1 {
+		return nl, fmt.Errorf("numInputs must be greater than 1, it is: %d", numInputs)
+	}
+	if !actfuncs.IsValidActFunc(actFunc) {
+		return nl, fmt.Errorf("Unknown activation function: %s", actFunc)
+	}
+
+	nl.LayerType = layerType
+	if layerType == layerTypeInput {
+		nl.ActFunc = actfuncs.NoActFunc
+	}
+
+	nl.NumNeurons = numNeurons
+	for i := 0; i < numNeurons; i++ {
+		n, err := newNeuron(numInputs, actFunc)
+		if err != nil {
+			return nl, err
+		}
+		nl.Neurons = append(nl.Neurons, n)
+		nl.Outputs = append(nl.Outputs, 0)
+	}
+
+	nl.NumInputs = numInputs
+	for i := 0; i < numInputs; i++ {
+		nl.Inputs = append(nl.Inputs, 0)
+	}
+
+	nl.ActFunc = actFunc
+
+	return nl, nil
+}
+
+func (nl *neuralLayer) isValid() (bool, string) {
+	if !isValidLayerType(nl.LayerType) {
+		return false, fmt.Sprintf("Invalid layer type: %s", nl.LayerType)
+	}
+	if nl.NumNeurons < 1 {
+		return false, fmt.Sprintf("NumNeurons must be > 0 but is: %d", nl.NumNeurons)
+	}
+	if len(nl.Neurons) != nl.NumNeurons {
+		return false, fmt.Sprintf("len(nl.Neurons) != nl.NumNeurons: %d, %d", len(nl.Neurons), nl.NumNeurons)
+	}
+	if len(nl.Outputs) != nl.NumNeurons {
+		return false, fmt.Sprintf("len(nl.Outputs) != nl.NumNeurons: %d, %d", len(nl.Outputs), nl.NumNeurons)
+	}
+	if nl.NumInputs < 1 {
+		return false, fmt.Sprintf("NumInputs must be > 0 but is: %d", nl.NumInputs)
+	}
+	if len(nl.Inputs) != nl.NumInputs {
+		return false, fmt.Sprintf("len(nl.Inputs) != nl.NumInputs: %d, %d", len(nl.Inputs), nl.NumInputs)
+	}
+	if !actfuncs.IsValidActFunc(nl.ActFunc) {
+		return false, fmt.Sprintf("Invalid activation function : %s", nl.ActFunc)
+	}
+	return true, ""
+}
+
+// calc will calculate the outputs for this neural layer.
+func (nl *neuralLayer) calc() error {
+	isValid, isValidMsg := nl.isValid()
+	if !isValid {
+		return errors.New(isValidMsg)
+	}
+
+	for iNeurons := 0; iNeurons < nl.NumNeurons; iNeurons++ {
+		//load the inputs into the neuron
+		for iInputs := 0; iInputs < nl.NumInputs; iInputs++ {
+			nl.Neurons[iNeurons].Inputs[iInputs] = nl.Inputs[iInputs]
+		}
+		err := nl.Neurons[iNeurons].calc()
+		if err != nil {
+			return err
+		}
+		nl.Outputs[iNeurons] = nl.Neurons[iNeurons].Output
+	}
+
+	return nil
+}
+
+//*************************************************************************************************************
+//NeuralNetwork
+
+// NeuralNetwork is a pass forward neural network.
+type NeuralNetwork struct {
+	InputLayer   neuralLayer
+	HiddenLayers []neuralLayer
+	OutputLayer  neuralLayer
+}
+
+// func NewNeuralNetwork(inputLayerNumInputs int, outputLayerNumOutputs int, outputLayerActivationFunction string, )
