@@ -175,7 +175,7 @@ func getKnownStateNeuralLayer() (*neuralLayer, error) {
 	return nl, nil
 }
 
-func TestNauralLayerCalc(t *testing.T) {
+func TestNeuralLayerCalc(t *testing.T) {
 	nlInvalid := neuralLayer{}
 	err := nlInvalid.calc()
 	if err == nil {
@@ -324,4 +324,29 @@ func TestNewNeuralNetwork(t *testing.T) {
 	if nn2.OutputLayer.PrevLayer.LayerType != layerTypeInput {
 		t.Error("For nn2.OutputLayer.PrevLayer.LayerType != layerTypeInput", "Expected", layerTypeInput, "Got", nn2.OutputLayer.PrevLayer.LayerType)
 	}
+}
+
+func TestNauralNetworkCalc(t *testing.T) {
+	nn, err := NewNeuralNetwork(
+		InputLayerProps{NumInputs: 3},
+		[]HiddenLayerProps{
+			HiddenLayerProps{NumNeurons: 10, ActFunc: actfuncs.Sigmoid},
+			HiddenLayerProps{NumNeurons: 20, ActFunc: actfuncs.Sigmoid},
+		},
+		OutputLayerProps{NumOutputs: 2, ActFunc: actfuncs.NoActFunc},
+	)
+	if err != nil {
+		t.Error(err)
+	}
+
+	nn.InputLayer.Inputs[0] = 0.003
+	nn.InputLayer.Inputs[1] = 0.008
+	nn.InputLayer.Inputs[2] = 0.002
+	err2 := nn.Calc()
+	if err2 != nil {
+		t.Error(err2)
+	}
+	// fmt.Printf("\n\noutput %f, %f\n\n", nn.OutputLayer.Outputs[0], nn.OutputLayer.Outputs[1])
+
+	// t.Error("bla")
 }

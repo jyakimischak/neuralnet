@@ -9,15 +9,18 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"time"
 
 	"github.com/jyakimischak/neuralnet/actfuncs"
 )
 
-const initialBias = 1.0
+const initialBias = 0
 
 const layerTypeInput = "layerTypeInput"
 const layerTypeHidden = "layerTypeHidden"
 const layerTypeOutput = "layerTypeOutput"
+
+const maxRecurseDepth = 30
 
 //*************************************************************************************************************
 //neuron
@@ -35,6 +38,8 @@ type neuron struct {
 
 // newNeuron will setup a neuron and return the instance of it.
 func newNeuron(numInputs int, actFunc string) (*neuron, error) {
+	rand.Seed(time.Now().UTC().UnixNano())
+
 	n := new(neuron)
 	if numInputs < 1 {
 		return n, errors.New("initNewNeuron: numInputs must be a positive integer")
@@ -174,6 +179,14 @@ func (nl *neuralLayer) isValid() (bool, string) {
 	if !actfuncs.IsValidActFunc(nl.ActFunc) {
 		return false, fmt.Sprintf("Invalid activation function : %s", nl.ActFunc)
 	}
+
+	for iNeuron := 0; iNeuron < len(nl.Neurons); iNeuron++ {
+		isValid, validMsg := nl.Neurons[iNeuron].isValid()
+		if !isValid {
+			return false, validMsg
+		}
+	}
+
 	return true, ""
 }
 
@@ -299,4 +312,65 @@ func NewNeuralNetwork(inputLayerProps InputLayerProps, hiddenLayerProps []Hidden
 	nn.OutputLayer = ol
 
 	return nn, nil
+}
+
+// IsValid checks if this neural network is in a valid state.
+func (nn *NeuralNetwork) IsValid() (bool, string) {
+	return nn.isValidRecurse(1, nil, nn.InputLayer)
+}
+func (nn *NeuralNetwork) isValidRecurse(depth int, prevLayer *neuralLayer, layer *neuralLayer) (bool, string) {
+	if depth == maxRecurseDepth {
+		return false, "Max recurse depth reached while validating"
+	}
+	var isValid bool
+	var invalidMsg string
+	isValid, invalidMsg = layer.isValid()
+	if !isValid {
+		return false, invalidMsg
+	}
+	if layer.NumInputs != len(layer.Inputs) {
+		return false, fmt.Sprintf("At depth %d, layer.NumInputs != len(layer.Inputs): %d, %d", depth, layer.NumInputs, len(layer.Inputs))
+	}
+	if layer.NumNeurons != len(layer.Neurons) {
+		return false, fmt.Sprintf("At depth %d, layer.NumNeurons != len(layer.Neurons): %d, %d", depth, layer.NumNeurons, len(layer.Neurons))
+	}
+	if prevLayer != layer.PrevLayer {
+		return false, fmt.Sprintf("At depth %d, prevLayer != layer.PrevLayer", depth)
+	}
+
+	//if we reached the output layer then we're all good
+	if layer.LayerType == layerTypeOutput {
+		return true, ""
+	}
+
+	if layer.NextLayer == nil {
+		return false, "Nil next layer found before the output layer"
+	}
+
+	if len(layer.Outputs) != layer.NextLayer.NumInputs {
+		return false, fmt.Sprintf("At depth %d, len(layer.Outputs) != layer.NextLayer.NumInputs: %d, %d", depth, len(layer.Outputs), layer.NextLayer.NumInputs)
+	}
+
+	return nn.isValidRecurse(depth+1, layer, layer.NextLayer)
+}
+
+//Calc will run the inputs through all layers of the neural network and save the outputs.
+func (nn *NeuralNetwork) Calc() error {
+	isValid, invalidMsg := nn.IsValid()
+	if !isValid {
+		return errors.New(invalidMsg)
+	}
+	return nn.calcRecurse(1, nn.InputLayer)
+}
+func (nn *NeuralNetwork) calcRecurse(depth int, layer *neuralLayer) error {
+	if depth == maxRecurseDepth {
+		return errors.New("Max recurse depth reached")
+	}
+	layer.calc()
+	//if we hit the output layer we are done
+	if layer.LayerType == layerTypeOutput {
+		return nil
+	}
+	copy(layer.NextLayer.Inputs, layer.Outputs)
+	return nn.calcRecurse(depth+1, layer.NextLayer)
 }
