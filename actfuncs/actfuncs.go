@@ -8,7 +8,7 @@ package actfuncs
 import "math"
 
 //NoActFunc no activation function
-const NoActFunc = ""
+const NoActFunc = "noActFunc"
 
 //Step activation function
 const Step = "step"

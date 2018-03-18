@@ -204,9 +204,99 @@ func (nl *neuralLayer) calc() error {
 
 // NeuralNetwork is a pass forward neural network.
 type NeuralNetwork struct {
-	InputLayer   neuralLayer
-	HiddenLayers []neuralLayer
-	OutputLayer  neuralLayer
+	InputLayer   *neuralLayer
+	HiddenLayers []*neuralLayer
+	OutputLayer  *neuralLayer
 }
 
-// func NewNeuralNetwork(inputLayerNumInputs int, outputLayerNumOutputs int, outputLayerActivationFunction string, )
+// InputLayerProps is used when calling NewNeuralNetwork.
+type InputLayerProps struct {
+	NumInputs int
+}
+
+// HiddenLayerProps is used when calling NewNeuralNetwork.
+type HiddenLayerProps struct {
+	NumNeurons int
+	ActFunc    string
+}
+
+// OutputLayerProps is used when calling NewNeuralNetwork.
+type OutputLayerProps struct {
+	NumOutputs int
+	ActFunc    string
+}
+
+// NewNeuralNetwork get an instance of a netral network.
+func NewNeuralNetwork(inputLayerProps InputLayerProps, hiddenLayerProps []HiddenLayerProps, outputLayerProps OutputLayerProps) (*NeuralNetwork, error) {
+	nn := &NeuralNetwork{}
+
+	//validate
+	if inputLayerProps.NumInputs < 1 {
+		return nn, fmt.Errorf("inputLayerProps.NumInputs must be > 0 and is: %d", inputLayerProps.NumInputs)
+	}
+	for iHiddenLayer := 0; iHiddenLayer < len(hiddenLayerProps); iHiddenLayer++ {
+		if hiddenLayerProps[iHiddenLayer].NumNeurons < 1 {
+			return nn, fmt.Errorf("hiddenLayerProps[%d].NumNeurons must be > 0 and is: %d", iHiddenLayer, hiddenLayerProps[iHiddenLayer].NumNeurons)
+		}
+		if !actfuncs.IsValidActFunc(hiddenLayerProps[iHiddenLayer].ActFunc) {
+			return nn, fmt.Errorf("hiddenLayerProps[%d].ActFunc is unknown: %s", iHiddenLayer, hiddenLayerProps[iHiddenLayer].ActFunc)
+		}
+	}
+	if outputLayerProps.NumOutputs < 1 {
+		return nn, fmt.Errorf("outputLayerProps.NumOutputs must be > 0 and is: %d", outputLayerProps.NumOutputs)
+	}
+	if !actfuncs.IsValidActFunc(outputLayerProps.ActFunc) {
+		return nn, fmt.Errorf("outputLayerProps.ActFunc is unknown: %s", outputLayerProps.ActFunc)
+	}
+
+	//create the input layer
+	il, err := newNeuralLayer(layerTypeInput, inputLayerProps.NumInputs, inputLayerProps.NumInputs, actfuncs.NoActFunc)
+	if err != nil {
+		return nn, err
+	}
+	nn.InputLayer = il
+
+	//create the hidden layers
+	for iHiddenLayer := 0; iHiddenLayer < len(hiddenLayerProps); iHiddenLayer++ {
+		var hl *neuralLayer
+		var err error
+		if iHiddenLayer == 0 {
+			hl, err = newNeuralLayer(layerTypeHidden, hiddenLayerProps[iHiddenLayer].NumNeurons, inputLayerProps.NumInputs, hiddenLayerProps[iHiddenLayer].ActFunc)
+			if err != nil {
+				return nn, err
+			}
+			nn.InputLayer.NextLayer = hl
+			hl.PrevLayer = nn.InputLayer
+		} else {
+			hl, err = newNeuralLayer(layerTypeHidden, hiddenLayerProps[iHiddenLayer].NumNeurons, hiddenLayerProps[iHiddenLayer-1].NumNeurons, hiddenLayerProps[iHiddenLayer].ActFunc)
+			if err != nil {
+				return nn, err
+			}
+			nn.HiddenLayers[iHiddenLayer-1].NextLayer = hl
+			hl.PrevLayer = nn.HiddenLayers[iHiddenLayer-1]
+		}
+		nn.HiddenLayers = append(nn.HiddenLayers, hl)
+	}
+
+	//create the output layer
+	var ol *neuralLayer
+	var err2 error
+	if len(hiddenLayerProps) > 0 {
+		ol, err2 = newNeuralLayer(layerTypeOutput, outputLayerProps.NumOutputs, hiddenLayerProps[len(hiddenLayerProps)-1].NumNeurons, outputLayerProps.ActFunc)
+		if err2 != nil {
+			return nn, err2
+		}
+		nn.HiddenLayers[len(hiddenLayerProps)-1].NextLayer = ol
+		ol.PrevLayer = nn.HiddenLayers[len(hiddenLayerProps)-1]
+	} else {
+		ol, err2 = newNeuralLayer(layerTypeOutput, outputLayerProps.NumOutputs, inputLayerProps.NumInputs, outputLayerProps.ActFunc)
+		if err2 != nil {
+			return nn, err2
+		}
+		nn.InputLayer.NextLayer = ol
+		ol.PrevLayer = nn.InputLayer
+	}
+	nn.OutputLayer = ol
+
+	return nn, nil
+}

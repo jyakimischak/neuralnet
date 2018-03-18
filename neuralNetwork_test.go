@@ -197,3 +197,131 @@ func TestNauralLayerCalc(t *testing.T) {
 		}
 	}
 }
+
+func TestNewNeuralNetwork(t *testing.T) {
+	_, err := NewNeuralNetwork(
+		InputLayerProps{NumInputs: 0},
+		nil,
+		OutputLayerProps{NumOutputs: 1, ActFunc: actfuncs.Sigmoid},
+	)
+	if err == nil {
+		t.Error("For InputLayerProps{NumInputs: 0}, did not recieve error")
+	}
+
+	_, err2 := NewNeuralNetwork(
+		InputLayerProps{NumInputs: 1},
+		[]HiddenLayerProps{
+			HiddenLayerProps{NumNeurons: 0, ActFunc: actfuncs.Sigmoid},
+		},
+		OutputLayerProps{NumOutputs: 1, ActFunc: actfuncs.Sigmoid},
+	)
+	if err2 == nil {
+		t.Error("For HiddenLayerProps{NumNeurons: 0, ActFunc: actfuncs.Sigmoid}, did not recieve error")
+	}
+
+	_, err3 := NewNeuralNetwork(
+		InputLayerProps{NumInputs: 1},
+		[]HiddenLayerProps{
+			HiddenLayerProps{NumNeurons: 1, ActFunc: "invalid"},
+		},
+		OutputLayerProps{NumOutputs: 1, ActFunc: actfuncs.Sigmoid},
+	)
+	if err3 == nil {
+		t.Error("For HiddenLayerProps{NumNeurons: 1, ActFunc: \"invalid\"}, did not recieve error")
+	}
+
+	_, err4 := NewNeuralNetwork(
+		InputLayerProps{NumInputs: 1},
+		nil,
+		OutputLayerProps{NumOutputs: 0, ActFunc: actfuncs.Sigmoid},
+	)
+	if err4 == nil {
+		t.Error("For OutputLayerProps{NumOutputs: 0, ActFunc: actfuncs.Sigmoid}, did not recieve error")
+	}
+
+	_, err5 := NewNeuralNetwork(
+		InputLayerProps{NumInputs: 1},
+		nil,
+		OutputLayerProps{NumOutputs: 1, ActFunc: "invalid"},
+	)
+	if err5 == nil {
+		t.Error("For OutputLayerProps{NumOutputs: 1, ActFunc: \"invalid\"}, did not recieve error")
+	}
+
+	nn, err6 := NewNeuralNetwork(
+		InputLayerProps{NumInputs: 1},
+		[]HiddenLayerProps{
+			HiddenLayerProps{NumNeurons: 10, ActFunc: actfuncs.Sigmoid},
+			HiddenLayerProps{NumNeurons: 20, ActFunc: actfuncs.Step},
+		},
+		OutputLayerProps{NumOutputs: 2, ActFunc: actfuncs.Sigmoid},
+	)
+	if err6 != nil {
+		t.Error(err6)
+	}
+
+	if len(nn.InputLayer.Neurons) != 1 {
+		t.Error("For len(nn.InputLayer.Neurons)", "Expected", 1, "Got", len(nn.InputLayer.Neurons))
+	}
+	if nn.InputLayer.ActFunc != actfuncs.NoActFunc {
+		t.Error("For nn.InputLayer.ActFunc", "Expected", actfuncs.NoActFunc, "Got", nn.InputLayer.ActFunc)
+	}
+
+	if len(nn.HiddenLayers) != 2 {
+		t.Error("For len(nn.HiddenLayers)", "Expected", 2, "Got", len(nn.HiddenLayers))
+	}
+	if len(nn.HiddenLayers[0].Inputs) != 1 {
+		t.Error("For len(nn.HiddenLayers[0].Inputs)", "Expected", 1, "Got", len(nn.HiddenLayers[0].Inputs))
+	}
+	if len(nn.HiddenLayers[0].Neurons) != 10 {
+		t.Error("For len(nn.HiddenLayers[0].Neurons)", "Expected", 10, "Got", len(nn.HiddenLayers[0].Neurons))
+	}
+	if nn.HiddenLayers[0].ActFunc != actfuncs.Sigmoid {
+		t.Error("For nn.HiddenLayers[0].ActFunc", "Expected", actfuncs.Sigmoid, "Got", nn.HiddenLayers[0].ActFunc)
+	}
+	if len(nn.HiddenLayers[1].Inputs) != 10 {
+		t.Error("For len(nn.HiddenLayers[1].Inputs)", "Expected", 10, "Got", len(nn.HiddenLayers[1].Inputs))
+	}
+	if len(nn.HiddenLayers[1].Neurons) != 20 {
+		t.Error("For len(nn.HiddenLayers[1].Neurons)", "Expected", 20, "Got", len(nn.HiddenLayers[1].Neurons))
+	}
+	if nn.HiddenLayers[1].ActFunc != actfuncs.Step {
+		t.Error("For nn.HiddenLayers[1].ActFunc", "Expected", actfuncs.Step, "Got", nn.HiddenLayers[1].ActFunc)
+	}
+
+	if len(nn.OutputLayer.Inputs) != 20 {
+		t.Error("For len(nn.OutputLayer.Inputs)", "Expected", 20, "Got", len(nn.OutputLayer.Inputs))
+	}
+	if len(nn.OutputLayer.Neurons) != 2 {
+		t.Error("For len(nn.OutputLayer.Neurons)", "Expected", 2, "Got", len(nn.OutputLayer.Neurons))
+	}
+	if nn.OutputLayer.ActFunc != actfuncs.Sigmoid {
+		t.Error("For nn.OutputLayer.ActFunc", "Expected", actfuncs.Sigmoid, "Got", nn.OutputLayer.ActFunc)
+	}
+
+	//forward traverse
+	if nn.InputLayer.NextLayer.NextLayer.NextLayer.LayerType != layerTypeOutput {
+		t.Error("For nn.InputLayer.NextLayer.NextLayer.NextLayer.LayerType", "Expected", layerTypeOutput, "Got", nn.InputLayer.NextLayer.NextLayer.NextLayer.LayerType)
+	}
+	//backward traverse
+	if nn.OutputLayer.PrevLayer.PrevLayer.PrevLayer.LayerType != layerTypeInput {
+		t.Error("For nn.OutputLayer.PrevLayer.PrevLayer.PrevLayer.LayerType != layerTypeInput", "Expected", layerTypeInput, "Got", nn.OutputLayer.PrevLayer.PrevLayer.PrevLayer.LayerType)
+	}
+
+	nn2, err7 := NewNeuralNetwork(
+		InputLayerProps{NumInputs: 1},
+		nil,
+		OutputLayerProps{NumOutputs: 2, ActFunc: actfuncs.Sigmoid},
+	)
+	if err7 != nil {
+		t.Error(err7)
+	}
+	//forward traverse
+	if nn2.InputLayer.NextLayer.LayerType != layerTypeOutput {
+		t.Error("For nn2.InputLayer.NextLayer.LayerType", "Expected", layerTypeOutput, "Got", nn2.InputLayer.NextLayer.LayerType)
+	}
+	//backward traverse
+	if nn2.OutputLayer.PrevLayer.LayerType != layerTypeInput {
+		t.Error("For nn2.OutputLayer.PrevLayer.LayerType != layerTypeInput", "Expected", layerTypeInput, "Got", nn2.OutputLayer.PrevLayer.LayerType)
+	}
+}
